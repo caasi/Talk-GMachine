@@ -1,18 +1,28 @@
-# G-machine: the stack machine inside a pure functional language
+class: inverse, center, middle
 
-## lambda calculus
+# G-machine
+## the stack machine inside a pure functional language
+### caasih
 
-### reduction rules
+2017.04.06
 
-* α-conversion
+---
 
-* β-reduction
+# lambda calculus
 
-* η-conversion
+  * reduction rules
 
-### lambda terms
+    * α-conversion
 
-```haskell
+    * β-reduction
+
+    * η-conversion
+
+---
+
+# lambda terms
+
+```
 data Term =
   | Var String
   | Lam String Term
@@ -29,11 +39,17 @@ data Term =
 \a a
 ```
 
-## sugared lambda
+---
 
-### Peter Landin & ISWIN
+# sugared lambda
 
-### let
+  * Peter Landin & ISWIN
+
+---
+
+# sugared lambda
+
+### `let`
 
 ```
 let x = 3 in id x
@@ -43,7 +59,7 @@ let x = 3 in id x
 (\x id x)(3)
 ```
 
-### where
+### `where`
 
 ```
 id x where x = 3
@@ -53,7 +69,17 @@ id x where x = 3
 (\x id x)(3)
 ```
 
-### data constructor and `case ... of`
+---
+
+# sugared lambda
+
+### `case ... of`
+
+```
+case ... of
+  True  -> ...
+  False -> ...
+```
 
 ```
 -- data Boolean = True | False
@@ -61,11 +87,9 @@ id x where x = 3
 (\x \y x)
 ```
 
-```
-case ... of
-  True  -> ...
-  False -> ...
-```
+---
+
+# sugared lambda
 
 ```
 -- data List a = Nil | Cons a List
@@ -85,6 +109,10 @@ case ... of
 )(\a \b a)
 ```
 
+---
+
+# sugared lambda
+
 ```
 -- 吃了兩個參數的 Cons
 (\a \b b x xs)
@@ -102,7 +130,11 @@ case ... of
 )(\a \b a)
 ```
 
-### let(rec) with only 1 argument
+---
+
+# sugared lambda
+
+### `let(rec)` with only 1 argument
 
 ```
 -- length
@@ -114,7 +146,7 @@ case ... of
 )
 ```
 
-```
+```haskell
 (\length \xs
   (xs
     (\nil 0)
@@ -124,7 +156,11 @@ case ... of
 (\length \xs ...)
 ```
 
-```
+---
+
+# sugared lambda
+
+```haskell
 (\f f f)
 (\length \xs
   (xs
@@ -147,6 +183,10 @@ case ... of
 )
 ```
 
+---
+
+# sugared lambda
+
 ```
 -- eta conversion
 (\h
@@ -163,6 +203,10 @@ case ... of
   )
 )
 ```
+
+---
+
+# sugared lambda
 
 ```
 (\h
@@ -185,11 +229,11 @@ case ... of
 )
 ```
 
-## the Core language(1987)
+---
 
-回到 Core 的寫法，而不使用前面的寫法。
+# Core (1987)
 
-```haskell
+```
 data Expr a
   = EVar Name
   | ENum Int
@@ -205,10 +249,16 @@ data Expr a
   | ELam [a] (Expr a)
 ```
 
+---
+
+# Core
+
 ```
 -- EVar Name
 id
+```
 
+```
 -- ENum Int
 42
 ```
@@ -222,6 +272,10 @@ Pack{tag, arity}
 -- EAp (Expr a) (Expr a)
 f x
 ```
+
+---
+
+# Core
 
 ```
 -- ELet IsRec [(a, Expr a)] (Expr a)
@@ -239,6 +293,10 @@ case ... of
   <1> x xs -> ...
 ```
 
+---
+
+# Core
+
 ```
 -- ELam [a] (Expr a)
 \x.x
@@ -249,29 +307,53 @@ case ... of
 \f.f f
 ```
 
-## naive way: template instantiation
+---
+
+# Template Instantiation
 
 ```
 (output, stack, dump, heap, stats)
 ```
 
-然後舉一兩個例子。
+  * 然後舉一兩個例子。
 
-## the G-machine
+---
+
+# the G-machine
 
 ```
 (output, stack, dump, heap, stats)
 ```
 
-舉很多例子。
+  * 舉很多例子。
+
+---
+
+# the G-machine
 
 ```
 (output, stack, vstack, dump, heap, stats)
 ```
 
-舉一個 int 例子，一個 boolean 例子。
+  * 舉一個 int 例子，一個 boolean 例子。
 
-## STG and STGi
+---
 
-## References
+# STG and STGi
+
+---
+
+# References
+
+  * a
+
+  * b
+
+  * c
+
+---
+
+class: inverse, center, middle
+
+# fin
 
