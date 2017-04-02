@@ -289,7 +289,10 @@ data Expr a
   | ECase
       (Expr a)
       [Alter a]
-  | ELam [a] (Expr a)
+  | ELam [a] (Expr a)o
+
+type Name = String
+type CoreExpr = Expr Name
 ```
 
 ---
@@ -310,6 +313,10 @@ id
 -- EConstr Int Int
 Pack{tag, arity}
 ```
+
+  * `tag` 出現了！ `tag` 可以說是 sum type 的 id
+
+  * 在一個 type check 過的程式中，只要自己的 type 裡 tag 不衝突就好了
 
 ```
 -- EAp (Expr a) (Expr a)
@@ -365,10 +372,149 @@ case ... of
 # Template Instantiation
 
 ```
+data Node
+  = NAp Addr Addr        -- Application
+  | NSupercomb           -- Supercombinator
+      Name
+      [Name]
+      CoreExpr
+  | NNum Int             -- A number
+  | NInd Addr            -- Indirection
+  | NPrim Name Primitive -- Primitive
+  | NData Int [Addr]     -- Tag, list of components
+  | NMarked Node         -- Marked node
+  | NForward Addr        -- Address pointed to the to-space heap
+```
+
+---
+
+# Template Instantiation
+
+```
 (output, stack, dump, heap, stats)
 ```
 
-  * 然後舉一兩個例子。
+  * output: 放輸出的字元陣列
+
+  * stack: 放現在正在爬的樹
+
+  * dump: 可以放爬到一半的樹
+
+  * heap: 放 Addr 與 AST 節點對應的 Map ， (Addr, Node)
+
+  * globals: 預先做好的環境常數們 (Name, Addr)
+
+  * stats: 放 debug 訊息
+
+---
+
+# Template Instantiation
+
+```
+-- program
+K x y = x ;
+main = K 3 (K 4 5)
+```
+
+```
+-- globals + env
+"main" => Addr 1
+"K"    => Addr 0
+```
+
+---
+
+# Template Instantiation
+
+```
+-- heap
+Addr 1 =>
+  NSupercomb
+    "main"
+    []
+    (EAp
+      (EAp (EVar "K") (ENum 3))
+      (EAp
+        (EAp (EVar "K") (ENum 4))
+        (ENum 5)))
+Addr 0 =>
+  NSupercomb
+    "K"
+    ["x", "y"]
+    (EVar "x")
+```
+
+---
+
+# Template Instantiation
+
+```
+-- stack
+[ 1 ] -- NSupercomb "main" ...
+```
+
+  * 在 stack 中找到了 `Addr 1`
+
+  * 發現對應的 `CoreExpr` 是 `(EAp (EAp (EVar "K") (ENum 3)) (EAp (EAp (EVar "K") (ENum 4)) (ENum 5)))`
+
+  * 把 `ENum 4` 做（instantiate）出來吧，得到 `NNum 4` ，放在 `Addr 3`
+
+  * 把 `EVar "K"` 做出來
+
+  * 從 globals + env 中查到 `"K"` 對應到 `0`
+
+  * 得到 `NAp (Addr 0) (Addr 3)` 放在 `Addr 4`
+
+  * 得到 `NNum 5` 放在 `Addr 5` ， `NAp (Addr 4) (Addr 5)` 放在 `Addr 6` 、 `NNum 3` 放 `Addr 7` 、 `NAp (Addr 0) (Addr 7)` 放在 `Addr 8` ...
+
+  * 最後得到 `NAp (Addr 8) (Addr 6)` 放在 `Addr 9`
+
+---
+
+# Template Instantiation
+
+```
+-- stack
+[ 9   -- (NAp (Addr 8) (Addr 6))
+, 8   -- (NAp (Addr 0) (Addr 7))
+]
+```
+
+```
+-- stack
+[ 9   -- (NAp (Addr 8) (Addr 6))
+, 8   -- (NAp (Addr 0) (Addr 7))
+, 0   -- Supercomb "K" ["x", "y"] ...
+]
+```
+
+  * 接著在 instantiate `K` 的過程中，會把 `K` 的 `x`, `y` 對應到 `Addr 7` 和 `Addr 6` ，成為新的 `env`
+
+---
+
+# Template Instantiation
+
+  * 簡單來說...
+
+  * template instantiation 靠查找 AST ，動態產生表示整個程式現況的圖
+
+  * 才能化簡並且共用節點
+
+  * 化簡的過程就是不斷爬樹
+
+  * 順著 `NAp` 一直往左邊爬，直到遇上 supercombinater
+
+  * 然後做出新的點來
+
+```
+-- stack
+[ 9   -- (NAp (Addr 8) (Addr 6))      | spine
+, 8   -- (NAp (Addr 0) (Addr 7))      |
+, 0   -- Supercomb "K" ["x", "y"] ... |
+]     --                              v
+```
+
+  * 這條爬著爬著會找到 supercombinator 和它的所有參數的路，就是 `spine`
 
 ---
 
