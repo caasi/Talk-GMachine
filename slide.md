@@ -10,18 +10,6 @@ class: inverse, center, middle
 
 # lambda calculus
 
-  * reduction rules
-
-    * α-conversion
-
-    * β-reduction
-
-    * η-conversion
-
----
-
-# lambda terms
-
 ```
 data Term =
   | Var String
@@ -29,15 +17,54 @@ data Term =
   | App Term Term
 ```
 
-```
--- id
-λa.a
-```
+  * lambda terms
 
-```
--- id
-\a a
-```
+    * variable
+
+      ```
+      x
+      ```
+
+    * lambda abstraction
+
+      ```
+      λx.x
+      ```
+
+    * lambda application
+
+      ```
+      f x
+      ```
+
+---
+
+# lambda calculus
+
+  * reduction rules
+
+    * α-conversion (alpha-conversion)
+
+      ```
+      λx.x
+      λy.y
+      ```
+
+    * β-reduction (beta-reduction)
+
+      ```
+      (λx.x) y
+      y
+      ```
+
+    * η-conversion (eta-conversion)
+
+      ```
+      (λx.f x)
+      f
+      ```
+
+      或反過來
 
 ---
 
@@ -49,24 +76,77 @@ data Term =
 
 # sugared lambda
 
-### `let`
+以下是對「加糖」前後的 lambda ，一種直觀的對照
+
+為了方便，
+
+```
+λx.x
+```
+
+都寫做
+
+```
+\x x
+```
+
+---
+
+# sugared lambda
+
+### `let` & `where`
 
 ```
 let x = 3 in id x
-```
-
-```
-(\x id x)(3)
-```
-
-### `where`
-
-```
 id x where x = 3
 ```
 
 ```
-(\x id x)(3)
+(\x    -- let x
+  id x --   in id x
+)(3)   -- = 3
+```
+
+---
+
+# sugared lambda
+
+### `letrec`
+
+```
+infinite n =
+  letrec
+    ns = cons n ns
+  in
+    ns
+```
+
+```
+(\n
+  (\ns                        -- letrec ns
+    ns                        --   in ns
+  )(\Y                        --
+    Y (\ns cons n ns)         -- = cons n ns
+  )(\f \x (f (x x))(f (x x)))
+)
+```
+
+---
+
+# sugared lambda
+
+### data constructors
+
+```
+-- data Bool = True | False
+(\x \y y)
+(\x \y x)
+```
+
+```
+-- data List a = Nil | Cons a List
+(\a \b a)
+(\x \xs (\a \b b x xs))
 ```
 
 ---
@@ -76,34 +156,21 @@ id x where x = 3
 ### `case ... of`
 
 ```
-case ... of
-  True  -> ...
-  False -> ...
-```
-
-```
--- data Boolean = True | False
-(\x \y y)
-(\x \y x)
-```
-
----
-
-# sugared lambda
-
-```
--- data List a = Nil | Cons a List
-(\a \b a)
-(\x \xs \a \b b x xs)
+let
+  list = (Cons 1 (Cons 1 (Cons 2 (Cons 3 Nil))))
+in
+  case list of
+    Nil       -> 0
+    Cons x xs -> 1
 ```
 
 ```
 (\Nil
 (\Cons
   (\list
-    case list of
-      Nil -> 0
-      Cons x xs -> 1
+    list         -- `case ... of` are embedded in functions
+      0          -- Nil       -> 0
+      (\x \xs 1) -- Cons x xs -> 1
   )(Cons 1 (Cons 1 (Cons 2 (Cons 3 Nil))))
 )(\x \xs \a \b b x xs)
 )(\a \b a)
@@ -113,47 +180,25 @@ case ... of
 
 # sugared lambda
 
-```
--- 吃了兩個參數的 Cons
-(\a \b b x xs)
-```
+### get `Y` from a `letrec` with only 1 argument
 
 ```
-(\Nil
-(\Cons
-  (\list
-    list
-      (0)
-      (\x \xs 1)
-  )(Cons 1 (Cons 1 (Cons 2 (Cons 3 Nil))))
-)(\x \xs \a \b b x xs)
-)(\a \b a)
-```
-
----
-
-# sugared lambda
-
-### `let(rec)` with only 1 argument
-
-```
--- length
 (\xs
   (xs
-    (\nil 0)
-    (\y \ys (+ 1 (length ys))) 
+    0
+    (\y \ys (+ 1 (length ys))) -- where is `length`?
   )
 )
 ```
 
-```haskell
+```
 (\length \xs
   (xs
-    (\nil 0)
-    (\y \ys (+ 1 (length length ys)))
+    0
+    (\y \ys (+ 1 (length length ys))) -- dum dum
   )
 )
-(\length \xs ...)
+(\length \xs ...) -- duplicated :(
 ```
 
 ---
@@ -164,7 +209,7 @@ case ... of
 (\f f f)
 (\length \xs
   (xs
-    (\nil 0)
+    0
     (\y \ys (+ 1 (length length ys)))
   )
 )
@@ -175,7 +220,7 @@ case ... of
 (\length
   (\g \xs
     (xs
-      (\nil 0)
+      0
       (\y \ys (+ 1 (g ys)))
     )
   )
@@ -188,7 +233,6 @@ case ... of
 # sugared lambda
 
 ```
--- eta conversion
 (\h
   (\f f f)
   (\length
@@ -198,7 +242,7 @@ case ... of
 )
 (\g \xs
   (xs
-    (\nil 0)
+    0
     (\y \ys (+ 1 (g ys)))
   )
 )
@@ -223,7 +267,6 @@ case ... of
 ```
 
 ```
--- Y
 (\f
   (\x f (x x)) (\x f (x x))
 )
@@ -273,14 +316,16 @@ Pack{tag, arity}
 f x
 ```
 
+另外 Core 是有 infix operators ，像是 `+` 啊 `*`
+
 ---
 
 # Core
 
 ```
 -- ELet IsRec [(a, Expr a)] (Expr a)
-let(rec)
-  a = ...
+let
+  a = ... ;
   b = ...
 in
   body
@@ -289,7 +334,7 @@ in
 ```
 -- ECase (Expr a) [Alter a]
 case ... of
-  <0> -> ...
+  <0>      -> ... ;
   <1> x xs -> ...
 ```
 
@@ -299,13 +344,21 @@ case ... of
 
 ```
 -- ELam [a] (Expr a)
-\x.x
-\x.y.x
-\x.y.y
-\f.g.x.f x (g x)
-\f.g.x.f (g x)
-\f.f f
+\x . x
+\x y . x
+\x y . y
+\f g x . f x (g x)
+\f g x . f (g x)
+\f . f f
 ```
+
+---
+
+# graph reduction
+
+  * lambda lifting
+
+  * supercombinator
 
 ---
 
