@@ -598,7 +598,7 @@ main = I 3
     [Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
 ]
 -- instructions
-[Unwind]
+[ Unwind ]
 ```
 
 ---
@@ -610,7 +610,7 @@ main = I 3
 [ NGlobal 0 [...]
 ]
 -- instructions
-[Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
+[ Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind ]
 ```
 
 ---
@@ -623,7 +623,7 @@ main = I 3
 , NNum 3
 ]
 -- instructions
-[Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
+[ Pushglobal "I", Mkap, Update 0, Pop 0, Unwind ]
 ```
 
 ---
@@ -637,7 +637,7 @@ main = I 3
 , NGlobal 1 [...]
 ]
 -- instructions
-[Mkap, Update 0, Pop 0, Unwind]
+[ Mkap, Update 0, Pop 0, Unwind ]
 ```
 
 ---
@@ -652,7 +652,7 @@ main = I 3
     NNum 3
 ]
 -- instructions
-[Update 0, Pop 0, Unwind]
+[ Update 0, Pop 0, Unwind ]
 ```
 
 ---
@@ -667,7 +667,7 @@ main = I 3
       NNum 3
 ]
 -- instructions
-[Unwind]
+[ Unwind ]
 ```
 
 ---
@@ -681,7 +681,7 @@ main = I 3
     NNum 3
 ]
 -- instructions
-[Unwind]
+[ Unwind ]
 ```
 
 ---
@@ -696,7 +696,7 @@ main = I 3
 , NNum 3
 ]
 -- instructions
-[Unwind]
+[ Unwind ]
 ```
 
 ---
@@ -711,7 +711,7 @@ main = I 3
 , NNum 3
 ]
 -- instrucitons
-[Push 0, Update 1, Pop 1, Unwind]
+[ Push 0, Update 1, Pop 1, Unwind ]
 ```
 
 ---
@@ -725,7 +725,7 @@ main = I 3
 , NNum 3
 ]
 -- instructions
-[Update 1, Pop 1, Unwind]
+[ Update 1, Pop 1, Unwind ]
 ```
 
 ---
@@ -738,7 +738,7 @@ main = I 3
 , Num 3
 ]
 -- instructions
-[Pop 1, Unwind]
+[ Pop 1, Unwind ]
 ```
 
 ---
@@ -750,7 +750,7 @@ main = I 3
 [ NInd (NNum 3)
 ]
 -- instructions
-[Unwind]
+[ Unwind ]
 ```
 
 ---
@@ -762,7 +762,7 @@ main = I 3
 [ NNum 3
 ]
 -- instructions
-[Unwind]
+[ Unwind ]
 ```
 
   * 跑完了，結果是 `3`
@@ -774,8 +774,58 @@ main = I 3
   * 接著我們來看看：
 
     ```
-    main = let three = 3 in three
+    main =
+      let
+        a = 1 ;
+        b = 2
+      in
+        K a b
     ```
+
+  * 為了在 compile 完後把不用的東西丟掉，要加上：
+
+    ```
+    data Instruction
+      = ...
+      | Slide Int
+    ```
+
+---
+
+# the G-machine
+
+  * 在 compile 出 `let` 的 `GmCode` 時， `let ... in` 裡面的東西看的是外面的 `env` ， `in` 後面的 body 看的是 `env` + `let ... in` 裡面的東西
+
+    ```
+    compileLet :: GmCompiler -> [(Name, CoreExpr)] -> GmCompiler
+    compileLet comp defs expr env
+      = compileLet' defs env ++ comp expr env' ++ [Slide (length defs)]
+      where env' = compileArgs defs env
+
+    compileLet' :: [(Name, CoreExpr)] -> GmEnvironment -> GmCode
+    compileLet' []                  env = []
+    compileLet' ((name, expr):defs) env
+      = compileC expr env ++ compileLet' defs (argOffset 1 env)
+      -- P.S. argOffset 會把 env 中的 index 都加上一
+
+    compileArgs :: [(Name, CoreExpr)] -> GmEnvironment -> GmEnvironment
+    compileArgs defs env
+      = zip (map first defs) [n-1, n-2, .. 0] ++ argOffset n env
+        where
+          n = length defs
+    ```
+
+---
+
+# the G-machine
+
+  * `a = 1` 的 `GmCode` 是 `[Pushint 1]`
+
+  * `b = 2` 的是 `[Pushint 2]`
+
+  * `K a b` 的是 `[Pushglobal "K", Push 1, Push 3, Mkap, Mkap]`
+
+  * 合起來是 `[Pushint 1, Pushint 2, Pushglobal "K", Push 1, Push 3, Mkap, Mkap, Slide 2, Update 0, Pop 0, Unwind]`
 
 ---
 
@@ -786,6 +836,406 @@ main = I 3
     ```
     Y f = letrec x = f x in x
     ```
+
+  * `letrec` 的 `x = f x` 和後面的 `x` 看得是全部的 `env`
+  
+  * 也就是外面的環境，加上 `x = f x` 自己
+  
+  * 為此加上：
+
+    ```
+    data Instruction
+      = ...
+      | Alloc Int
+    ```
+
+---
+
+# the G-machine
+
+  * `Y f` 有一個參數，所以當 `Push 0` 時，那個 `0` 指的是 `f`
+
+  * `letrec x = f x` 引進了新的參數 `x` ，而這個 `x` 整個 `letrec x = f x in x` 都看得到，於是靠 `Alloc 1` 來空出一個位置給它
+
+  * 這時 `x = f x` 會是 `[Push 0, Push 2, Mkap, Update 0]`
+
+  * 上面的 `Update 0` 是把做出來的 `Node` ，填回 `Alloc 1` 出來的空間，於是 `x = f x` 就參考到自己了
+
+  * `in x` 是 `[Push 0]`
+
+  * 做完後一樣要把 `let ... in` 裡面的東西丟掉， `Slide 1`
+
+  * 全部是 `[Alloc 1, Push 0, Push 2, Mkap, Update 0, Push 0, Slide 1, Update 1, Pop 1, Unwind]`
+
+---
+
+# the G-machine
+
+  * 來看看：
+
+    ```
+    Y f = letrec x = f x in x ;
+    main = Y I 3
+    ```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pushint 3, Pushglobal "I", Pushglobal "Y", Mkap, Mkap
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- instructions
+[ Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pushint 3, Pushglobal "I", Pushglobal "Y", Mkap, Mkap
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- instructions
+[ Pushint 3, Pushglobal "I", Pushglobal "Y", Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 3
+]
+-- instructions
+[ Pushglobal "I", Pushglobal "Y", Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 3
+, NGlobal 1 [...] -- I
+]
+-- instructions
+[ Pushglobal "Y", Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 3
+, NGlobal 1 [...] -- I
+, NGlobal         -- Y
+    1
+    [ Alloc 1
+    , Push 0, Push 2, Mkap, Update 0
+    , Push 0
+    , Slide 1
+    , Update 1, Pop 1, Unwind
+    ]
+]
+-- instructions
+[ Mkap, Mkap, Update 0, Pop 0, Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 3
+, NAp
+    NGlobal 1 [...] -- Y
+    NGlobal 1 [...] -- I
+]
+-- instructions
+[ Mkap, Update 0, Pop 0, Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NAp
+    NAp
+      NGlobal 1 [...] -- Y
+      NGlobal 1 [...] -- I
+    NNum 3
+]
+-- instructions
+[ Update 0, Pop 0, Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NAp
+      NGlobal 1 [...] -- Y
+      NGlobal 1 [...] -- I
+    NNum 3
+]
+-- instructions
+[ Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+, NGlobal 1 [...] -- Y
+]
+-- instructions
+[ Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+]
+-- instructions
+[ Alloc 1
+, Push 0, Push 2, Mkap, Update 0
+, Push 0
+, Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+, ?               -- 空出來了 XD
+]
+-- instructions
+[ Push 0, Push 2, Mkap, Update 0
+, Push 0
+, Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+, ?
+, ?
+]
+-- instructions
+[ Push 2, Mkap, Update 0
+, Push 0
+, Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+, ?
+, ?
+, NGlobal 1 [...] -- I
+]
+-- instructions
+[ Mkap, Update 0
+, Push 0
+, Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...]   -- I
+, ?
+, NAp
+    NGlobal 1 [...] -- I
+    ?
+]
+-- instructions
+[ Update 0
+, Push 0
+, Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...]   -- I
+, NAp
+    NGlobal 1 [...] -- I
+    NAp ...
+]
+-- instructions
+[ Push 0
+, Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+, NAp ...
+, NAp ...         -- 跟上面的 NAp 是同一個
+]
+-- instructions
+[ Slide 1
+, Update 1, Pop 1, Unwind
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NGlobal 1 [...] -- I
+, NAp ...
+]
+-- instructions
+[ Update 1, Pop 1, Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NInd NAp ...
+]
+-- instructions
+[ Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NInd NAp
+    NGlobal 1 [...]
+    NInd NAp
+      NGlobal 1 [...]
+      NInd NAp
+        NGlobal 1 [...]
+        NInd NAp
+          .
+            .
+              .
+]
+
+-- instructions
+[ Unwind ]
+```
+
+  * 然後就會把 `I` 一直 apply 到自己身上
+
+  * `Y` combinator 對 `Node` 做的事情被稱為 "knot-tying" （打結）
+
+---
+
+# the G-machine
+
+  * primitives
+
+---
+
+# the G-machine
+
+  * `case ... of`
 
 ---
 
@@ -803,6 +1253,8 @@ data Instruction
 ```
 (output, stack, vstack, dump, heap, globals, stats)
 ```
+
+  * speed up!
 
   * 舉一個 int 例子，一個 boolean 例子。
 
