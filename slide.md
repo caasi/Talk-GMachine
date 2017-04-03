@@ -391,7 +391,7 @@ data Node
 # Template Instantiation
 
 ```
-(output, stack, dump, heap, stats)
+(output, stack, dump, heap, globals, stats)
 ```
 
   * output: 放輸出的字元陣列
@@ -518,23 +518,320 @@ Addr 0 =>
 
 ---
 
-# the G-machine
+# Template Instantiation
 
-```
-(output, stack, dump, heap, stats)
-```
+  * 易懂但是：
 
-  * 舉很多例子。
+    * 得走過 `CoreExpr` ，配上現有的 `globals` 和 `env` 才能生出新的 `Node`
+
+    * 沒法簡單做出 `case ... of`
+
+  * 能不能直接操作 `stack` 裡面的值就好？
 
 ---
 
 # the G-machine
 
 ```
-(output, stack, vstack, dump, heap, stats)
+type GmCode = [Instruction]
+
+data Instruction
+  = Unwind
+  | Pushglobal Name
+  | Pushint Int
+  | Push Int
+  | Mkap
+  | Update Int
+  | Pop Int
+  | ...
+```
+
+```
+(output, stack, dump, heap, globals, stats)
+```
+
+---
+
+# the G-machine
+
+```
+I x = x ;
+main = I 3
+```
+
+  * 以 `I x = x` 為例，如果 `stack` 中離你最近的參數 index 為 `0` ，那你要做的事情是：
+
+    * 把 index `0` 的 `x` 放到 `stack` 頂端
+
+    * 更新原本的 `Node` 成 `stack` 頂端的結果
+
+    * 把 `stack` 中的值和參數都清掉
+
+  * 於是 `GmCode` 是：
+
+    ```
+    [Push 0, Update 1, Pop 1, Unwind]
+    ```
+
+---
+
+# the G-machine
+
+  * 再來看看 `main = I 3`
+
+  * 寫成 `CoreExpr` 是 `EAp (EVar "I") (ENum 3)`
+
+  * `I` 和 `3` 都不是 `main` 的參數，故 `GmCode` 是：
+
+    ```
+    [Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
+    ```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
+]
+-- instructions
+[Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+]
+-- instructions
+[Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 3
+]
+-- instructions
+[Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 3
+, NGlobal 1 [...]
+]
+-- instructions
+[Mkap, Update 0, Pop 0, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NAp
+    NGlobal 1 [...]
+    NNum 3
+]
+-- instructions
+[Update 0, Pop 0, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NInd
+    NAp
+      NGlobal 1 [...]
+      NNum 3
+]
+-- instructions
+[Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...]
+    NNum 3
+]
+-- instructions
+[Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...]
+    NNum 3
+, NNum 3
+]
+-- instructions
+[Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...]
+    NNum 3
+, NNum 3
+]
+-- instrucitons
+[Push 0, Update 1, Pop 1, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 3
+, NNum 3
+]
+-- instructions
+[Update 1, Pop 1, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NInd (NNum 3)
+, Num 3
+]
+-- instructions
+[Pop 1, Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NInd (NNum 3)
+]
+-- instructions
+[Unwind]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NNum 3
+]
+-- instructions
+[Unwind]
+```
+
+  * 跑完了，結果是 `3`
+
+---
+
+# the G-machine
+
+  * 接著我們來看看：
+
+    ```
+    main = let three = 3 in three
+    ```
+
+---
+
+# the G-machine
+
+  * 來看看：
+
+    ```
+    Y f = letrec x = f x in x
+    ```
+
+---
+
+# the G-machine
+
+```
+data Instruction
+  = ...
+  | Pushbasic Int
+  | Mkbool
+  | Mkint
+  | Get
+```
+
+```
+(output, stack, vstack, dump, heap, globals, stats)
 ```
 
   * 舉一個 int 例子，一個 boolean 例子。
+
+---
+
+# the G-machine
+
+```
+type GmCode = [Instruction]
+
+data Instruction
+  = Unwind
+  | Pushglobal Name
+  | Puthint Int
+  | Push Int
+  | Mkap
+  | Slide Int
+  | Alloc Int
+  | Update Int
+  | Pop Int
+  | Eval
+  | Add | Sub | Mul | Div | Neg
+  | Eq | Ne | Lt | Le | Gt | Ge
+  | Cond GmCode GmCode
+  | Pack Int Int
+  | Casejump [(Int, GmCode)]
+  | Split Int
+  | Print
+```
 
 ---
 
@@ -544,11 +841,17 @@ Addr 0 =>
 
 # References
 
-  * a
+  * The Implementation of Functional Programming Languages
 
-  * b
+  * Implementing functional languages: a tutorial
 
-  * c
+  * [Into the Core](https://www.youtube.com/watch?v=uR_VzYxvbxg)
+
+  * The next 700 programming languages
+
+  * [Functional and low-level: watching the STG execute](https://skillsmatter.com/skillscasts/8800-functional-and-low-level-watching-the-stg-execute)
+
+  * [workshop-2015.9.24.md](https://github.com/CindyLinz/BYOHC-Workshop/blob/master/workshop-2015.9.24.md)
 
 ---
 
