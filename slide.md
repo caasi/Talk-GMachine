@@ -2933,15 +2933,18 @@ data Instruction
 
   * [Implementing functional languages: a tutorial][spj-lester-1992]
 
-  * [Into the Core][Core]
-
   * The next 700 programming languages
+
+  * [Into the Core][spj-2016]
+
+  * [Some History of Functional Programming Languages][david-turner-2017]
 
   * [workshop-2015.9.24.md][BYOHC-note]
 
 [spj-1987]: https://www.microsoft.com/en-us/research/publication/the-implementation-of-functional-programming-languages/
 [spj-lester-1992]: https://www.microsoft.com/en-us/research/publication/implementing-functional-languages-a-tutorial/
-[Core]: https://www.youtube.com/watch?v=uR_VzYxvbxg
+[spj-2016]: https://www.youtube.com/watch?v=uR_VzYxvbxg
+[david-turner-2017]: https://www.youtube.com/watch?v=QVwm9jlBTik
 [BYOHC-note]: https://github.com/CindyLinz/BYOHC-Workshop/blob/master/workshop-2015.9.24.md
 
 ---
