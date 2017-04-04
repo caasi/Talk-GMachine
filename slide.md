@@ -2144,7 +2144,7 @@ main = Pack{2,2} 1 (Pack{2,2} 1 Pack{1,0})
 ]
 -- instructions
 [ Push 0, Eval
-, Casejump [ (1, [ Pushint 0 ] )
+, Casejump [ (1, [ Split 0, Pushint 0, Slide 0 ] )
            , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
                    Eval, Pushint 1, Add, Slide 2
                  ]
@@ -2167,7 +2167,7 @@ main = Pack{2,2} 1 (Pack{2,2} 1 Pack{1,0})
 , NConstr 2 [...]
 ]
 -- instructions
-[ Casejump [ (1, [ Pushint 0 ] )
+[ Casejump [ (1, [ Split 0, Pushint 0, Slide 0 ] )
            , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
                    Eval, Pushint 1, Add, Slide 2
                  ]
@@ -2304,12 +2304,578 @@ main = Pack{2,2} 1 (Pack{2,2} 1 Pack{1,0})
 -- instructions
 [ Unwind ]
 -- dump
-[ ([], [])
+[ ( [], [] )
 , ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
   , [ NAp ..., NConstr 2 [...], NNum 1 ]
   )
 ]
 ```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+]
+-- instructions
+[ Push 0, Eval
+, Casejump [ (1, [ Split 0, Pushint 0, Slide 0 ] )
+           , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
+                   Eval, Pushint 1, Add, Slide 2
+                 ]
+           ]
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+  * `[Push 0, Eval]` 後還是 `NConstr 2 [...]`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr
+    2
+    [ NNum 1
+    , NConstr 1 []
+    ]
+-- instructions
+[ Casejump [ (1, [ Split 0, Pushint 0, Slide 0 ] )
+           , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
+                   Eval, Pushint 1, Add, Slide 2
+                 ]
+           ]
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr
+    2
+    [ NNum 1
+    , NConstr 1 []
+    ]
+-- instructions
+[ Split 2, Push 1, Pushglobal "length", Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+]
+-- instructions
+[ Push 1, Pushglobal "length", Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+, NConstr 1 []
+]
+-- instructions
+[ Pushglobal "length", Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+, NConstr 1 []
+, NGlobal 1 [...] -- length
+]
+-- instructions
+[ Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+, NAp
+    NGlobal 1 [...] -- length
+    NConstr 1 []
+]
+-- instructions
+[ Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...] -- length
+    NConstr 1 []
+]
+-- instructions
+[ Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 1 []
+]
+-- instructions
+[ Push 0, Eval
+, Casejump [ (1, [ Split 0, Pushint 0, Slide 0 ] )
+           , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
+                   Eval, Pushint 1, Add, Slide 2
+                 ]
+           ]
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 1 []
+, NConstr 1 []
+]
+-- instructions
+[ Casejump [ (1, [ Split 0, Pushint 0, Slide 0 ] )
+           , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
+                   Eval, Pushint 1, Add, Slide 2
+                 ]
+           ]
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 1 []
+, NConstr 1 []
+]
+-- instructions
+[ Split 0, Pushint 0, Slide 0
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+  * 原書沒有加上 `Split 0` 和 `Slide 0` ，少拆 constructor ， update 錯 `Node`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 1 []
+]
+-- instructions
+[ Pushint 0, Slide 0
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+  * `Slide 0` 很明顯沒有作用
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 1 []
+, NNum 0
+]
+-- instructions
+[ Update 1, Pop 1, Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+  * 一樣加速一下
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NNum 0 ]
+-- instructions
+[ Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NConstr 1 [], NNum 1]
+  )
+]
+```
+
+  * 要恢復 dump 裡的東西了
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+, NNum 0
+]
+-- instructions
+[ Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+, NNum 0
+, NNum 1
+]
+-- instructions
+[ Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NConstr 1 []
+, NNum 1
+, NNum 1
+]
+-- instructions
+[ Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+]
+-- instructions
+[ Update 1, Pop 1, Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NNum 1 ]
+-- instructions
+[ Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
+```
+
+  * 又要從 dump 中恢復東西了
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+, NNum 1
+]
+-- instructions
+[ Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+, NNum 1
+, NNum 1
+]
+-- instructions
+[ Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+, NNum 2
+]
+-- instructions
+[ Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 2
+]
+-- instructions
+[ Update 1, Pop 1, Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+
+```
+-- stack
+[ NNum 2 ]
+-- instructions
+[ Unwind ]
+-- dump
+[]
+```
+
+  * 結果是 `2`
 
 ---
 
@@ -2328,9 +2894,9 @@ data Instruction
 (output, stack, vstack, dump, heap, globals, stats)
 ```
 
-  * speed up!
+  * `Int` 和 `Bool` 的計算還能更快
 
-  * 舉一個 int 例子，一個 boolean 例子。
+  * 舉一個 int 例子
 
 ---
 
@@ -2358,10 +2924,6 @@ data Instruction
   | Split Int
   | Print
 ```
-
----
-
-# STG and STGi
 
 ---
 
