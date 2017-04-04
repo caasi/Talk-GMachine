@@ -1879,6 +1879,12 @@ main = s 7 6
       | Split Int
     ```
 
+  * `Pack t a` 會把 stack 中 `a` 個東西打包成 `NConstr Int [Addr]` （`Addr` to `Node`）
+
+  * `Casejump [...]` 包含了不同 branch 的 `GmCode`
+
+  * `Split n` 則會從 `NConstr ...` 中拆出 `n` 個東西到 stack 中
+
 ---
 
 # the G-machine
@@ -1889,6 +1895,420 @@ length xs = case xs of
   <2> y ys -> 1 + length ys
 --   = Cons 1 (Cons 1 Nil)
 main = Pack{2,2} 1 (Pack{2,2} 1 Pack{1,0})
+```
+
+  * `<1> -> 0` 是 `[Pushint 0]`
+
+  * `<2> y ys -> 1 + length ys` 是 `[Split 2, Push 1, Pushglobal "length", Mkap, Eval, Pushint 1, Add, Slide 2]`
+
+  * `length xs = case xs of ...` 是 `[Push 0, Eval, Casejump [...], Update 1, Pop 1, Unwind]`
+
+  * `main` 是 `[Pack{1,0}, Pushint 1, Pack{2,2}, Pushint 1, Pack{2,2}, Pushglobal "length", Mkap, Update 0, Pop 0, Unwind]`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[]
+-- instructions
+[ Pushglobal "main", Eval ]
+-- dump
+[]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pack{1,0}, Pushint 1, Pack{2,2}, Pushint 1, Pack{2,2}
+    , Pushglobal "length", Mkap
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- instructions
+[ Eval ]
+-- dump
+[]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pack{1,0}, Pushint 1, Pack{2,2}, Pushint 1, Pack{2,2}
+    , Pushglobal "length", Mkap
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+]
+-- instructions
+[ Pack{1,0}, Pushint 1, Pack{2,2}, Pushint 1, Pack{2,2}
+, Pushglobal "length", Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NConstr 1 []
+]
+-- instructions
+[ Pushint 1, Pack{2,2}, Pushint 1, Pack{2,2}
+, Pushglobal "length", Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NConstr 1 []
+, NNum 1
+]
+-- instructions
+[ Pack{2,2}, Pushint 1, Pack{2,2}
+, Pushglobal "length", Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NConstr
+    2
+    [ NNum 1
+    , NConstr 1 []
+    ]
+]
+-- instructions
+[ Pushint 1, Pack{2,2}
+, Pushglobal "length", Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NConstr
+    2
+    [ NNum 1
+    , NConstr 1 []
+    ]
+, NNum 1
+]
+-- instructions
+[ Pack{2,2}
+, Pushglobal "length", Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NConstr
+    2
+    [ NNum 1
+    , NConstr
+        2
+        [ NNum 1
+        , NConstr 1 []
+        ]
+    ]
+]
+-- instructions
+[ Pushglobal "length", Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] -- main
+, NConstr 2 [...]
+, NGlobal 1 [...] -- length
+]
+-- instructions
+[ Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]   -- main
+, NAp
+    NGlobal 1 [...] -- length
+    NConstr 2 [...]
+]
+-- instructions
+[ Update 0, Pop 0, Unwind ]
+-- dump
+[([], [])]
+```
+
+  * `[Update 0, Pop 0, Unwind]` 很熟了，加速一下
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...] -- length
+    NConstr 2 [...]
+]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+]
+-- instructions
+[ Push 0, Eval
+, Casejump [ (1, [ Pushint 0 ] )
+           , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
+                   Eval, Pushint 1, Add, Slide 2
+                 ]
+           ]
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+  * `[Push 0, Eval]` 後還是 `NConstr 2 ...`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+]
+-- instructions
+[ Casejump [ (1, [ Pushint 0 ] )
+           , (2, [ Split 2, Push 1, Pushglobal "length", Mkap,
+                   Eval, Pushint 1, Add, Slide 2
+                 ]
+           ]
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+  * `NConstr 2 ...` 選到 `Casejump` 的第二個分支
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr
+    2
+    [ NNum 1
+    , NConstr
+        2
+        [ NNum 1
+        , NConstr 1 []
+        ]
+    ]
+]
+-- instructions
+[ Split 2, Push 1, Pushglobal "length", Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr
+    2
+    [ NNum 1
+    , NConstr 1 []
+    ]
+, NNum 1
+]
+-- instructions
+[ Push 1, Pushglobal "length", Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+, NConstr 2 [...]
+]
+-- instructions
+[ Pushglobal "length", Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+, NConstr 2 [...]
+, NGlobal 1 [...] -- length
+]
+-- instructions
+[ Mkap
+, Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NConstr 2 [...]
+, NNum 1
+, NAp
+    NGlobal 1 [...] -- length
+    NConstr 2 [...]
+]
+-- instructions
+[ Eval, Pushint 1, Add, Slide 2
+, Update 1, Pop 1, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...] -- length
+    NConstr 2 [...]
+]
+-- instructions
+[ Unwind ]
+-- dump
+[ ([], [])
+, ( [ Pushint 1, Add, Slide 2, Update 1, Pop 1, Unwind ]
+  , [ NAp ..., NConstr 2 [...], NNum 1 ]
+  )
+]
 ```
 
 ---
