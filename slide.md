@@ -587,6 +587,19 @@ main = I 3
     [Pushint 3, Pushglobal "I", Mkap, Update 0, Pop 0, Unwind]
     ```
 
+  * 一開始的 GmCode 是 `[Pushglobal "main", Unwind]`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[]
+-- instructions
+[ Pushglobal "main", Unwind ]
+```
+
 ---
 
 # the G-machine
@@ -884,6 +897,17 @@ main = I 3
 
 ```
 -- stack
+[]
+-- instructions
+[ Pushglobal "main", Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
 [ NGlobal
     0
     [ Pushint 3, Pushglobal "I", Pushglobal "Y", Mkap, Mkap
@@ -1139,9 +1163,9 @@ main = I 3
 [ NAp ...
 , NNum 3
 , NGlobal 1 [...]   -- I
-, NAp
+, NInd NAp
     NGlobal 1 [...] -- I
-    NAp ...
+    NInd NAp ...
 ]
 -- instructions
 [ Push 0
@@ -1159,8 +1183,8 @@ main = I 3
 [ NAp ...
 , NNum 3
 , NGlobal 1 [...] -- I
-, NAp ...
-, NAp ...         -- 跟上面的 NAp 是同一個
+, NInd NAp ...
+, NInd NAp ...         -- 跟上面的是同一個
 ]
 -- instructions
 [ Slide 1
@@ -1177,7 +1201,7 @@ main = I 3
 [ NAp ...
 , NNum 3
 , NGlobal 1 [...] -- I
-, NAp ...
+, NInd (NInd NAp ...)
 ]
 -- instructions
 [ Update 1, Pop 1, Unwind ]
@@ -1191,7 +1215,7 @@ main = I 3
 -- stack
 [ NAp ...
 , NNum 3
-, NInd NAp ...
+, NInd (NInd NAp ...)
 ]
 -- instructions
 [ Unwind ]
@@ -1229,13 +1253,643 @@ main = I 3
 
 # the G-machine
 
-  * primitives
+  * 為了支援 `(+)`, `(*)` 之類的 primitives ，要增加新的 `Instruction`
+
+    ```
+    data Instruction
+      = ...
+      | Eval
+      | Add | Sub | Mul | Div | Neg
+      | Eq | Ne | Lt | Le | Gt | Ge
+      | Cond GmCode GmCode
+    ```
+
+  * 如此才能確保 primitives 拿到的是 `NNum Int`
+
+  * `Eval` 發生時，會把現在的 instructions 還有 stack 的 tail 存到 dump 中，然後試著把 stack head 算到 WHNF
+
+  * 因為這樣， `Unwind` 現在得注意 dump 內還有沒有東西，來決定是算完了，還是 `Eval` 在求值
+
+  * `Unwind` 到 `NGlobal` 時若發現吃不滿，會試著恢復 dump 中的 insturctions 和 stack
+
+  * 之後在 `case ... of` 也會用到 `Eval`
 
 ---
 
 # the G-machine
 
-  * `case ... of`
+```
+s x y = x + I y ;
+main = s 7 6
+```
+
+  * `(+)` 的 `GmCode` 是 `[Push 1, Eval, Push 1, Eval, Add, Update 2, Pop 2, Unwind]` ，之後會用到
+
+  * `s x y = x + I y` 的 `GmCode` 是 `[Push 0, Pushglobal "I", Mkap, Push 2, Pushglobal "+", Mkap, Mkap, Update 2, Pop 2, Unwind]`
+
+  * `main = s 7 6` 的 `GmCode` 是 `[Pushint 6, Pushint 7, Pushglobal "s", Mkap, Mkap, Update 0, Pop 0, Unwind]`
+
+  * 一開始的 GmCode 變成 `[Pushglobal "main", Eval]`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[]
+-- instructions
+[ Pushglobal "main", Eval ]
+-- dump
+[]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pushint 6, Pushint 7, Pushglobal "s", Mkap, Mkap
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- instructions
+[ Eval ]
+-- dump
+[]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pushint 6, Pushint 7, Pushglobal "s", Mkap, Mkap
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+]
+-- instructions
+[ Pushint 6, Pushint 7, Pushglobal "s", Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 6
+]
+-- instructions
+[ Pushint 7, Pushglobal "s", Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 6
+, NNum 7
+]
+-- instructions
+[ Pushglobal "s", Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 6
+, NNum 7
+, NGlobal
+    2
+    [ Push 0, Pushglobal "I", Mkap
+    , Push 2, Pushglobal "+", Mkap, Mkap
+    , Update 2, Pop 2, Unwind
+    ]
+-- instructions
+[ Mkap, Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 6
+, NAp
+    NGlobal 2 [...]
+    NNum 7
+]
+-- instructions
+[ Mkap
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NAp
+    NAp
+      NGlobal 2 [...]
+      NNum 7
+    NNum 6
+]
+-- instructions
+[ Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NInd NAp
+    NAp
+      NAp NGlobal 2 [...]
+      NNum 7
+    NNum 6
+]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NAp
+      NAp NGlobal 2 [...]
+      NNum 7
+    NNum 6
+]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+]
+-- instructions
+[ Push 0, Pushglobal "I", Mkap
+, Push 2, Pushglobal "+", Mkap, Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NNum 7
+]
+-- instructions
+[ Pushglobal "I", Mkap
+, Push 2, Pushglobal "+", Mkap, Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NNum 7
+, NGlobal 1 [...] -- I
+]
+-- instructions
+[ Mkap
+, Push 2, Pushglobal "+", Mkap, Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NAp
+    NNum 7
+    NGlobal 1 [...] -- I
+]
+-- instructions
+[ Push 2, Pushglobal "+", Mkap, Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NAp ...
+, NNum 6
+]
+-- instructions
+[ Pushglobal "+", Mkap, Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NAp ...
+, NNum 6
+, NGlobal 2 [...] -- (+)
+]
+-- instructions
+[ Mkap, Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NAp ...
+, NAp
+    NGlobal 2 [...] -- (+)
+    NNum 6
+]
+-- instructions
+[ Mkap
+, Update 2, Pop 2, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 6
+, NNum 7
+, NAp
+    NAp
+      NGlobal 2 [...] -- (+)
+      NNum 6
+    NAp
+      NGlobal 1 [...] -- I
+      NNum 7
+]
+-- instructions
+[ Update 2, Pop 2, Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NAp
+      NGlobal 2 [...] -- (+)
+      NNum 6
+    NAp
+      NGlobal 1 [...] -- I
+      NNum 7
+]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+  * 本來 `Update n` 完會有個 `NInd ...` 的，但 `Unwind` 會把它消掉
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NAp
+    NGlobal 1 [...] -- I
+    NNum 7
+, NNum 6
+]
+-- instructions
+[ Push 1, Eval, Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NAp ...
+, NNum 6
+, NAp
+    NGlobal 1 [...] -- I
+    NNum 7
+]
+-- instructions
+[ Eval, Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp
+    NGlobal 1 [...] -- I
+    NNum 7
+]
+-- instructions
+[ Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
+  , [ NAP ..., NAp ..., NNum 6 ]
+  )
+]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NNum 7
+]
+-- instructions
+[ Push 0, Update 1, Pop 1, Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
+  , [ NAP ..., NAp ..., NNum 6 ]
+  )
+]
+```
+
+  * 加速一下...
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NNum 7 ]
+-- instructions
+[ Unwind ]
+-- dump
+[ ( [], [] )
+, ( [ Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
+  , [ NAP ..., NAp ..., NNum 6 ]
+  )
+]
+```
+
+  * 這時 `NNum 7` 是 WHNF 了
+
+  * 把 dump 中的東西搬回來繼續算
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NInd NNum 7 -- 變成指到 NNum 7 了
+, NNum 6
+, NNum 7
+]
+-- instructions
+[ Push 1, EVal, Add, Update 2, Pop 2, Unwind ]
+-- dump
+[([], [])]
+```
+
+  * 再加速一下， `NNum 6` 被 `[Push 1, EVal]` 的結果就是 `NNum 6`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NInd NNum 7
+, NNum 6
+, NNum 7
+, NNum 6
+]
+-- instructions
+[ Add, Update 2, Pop 2, Unwind ]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NInd NNum 7
+, NNum 6
+, NNum 13
+]
+-- instructions
+[ Update 2, Pop 2, Unwind ]
+-- dump
+[([], [])]
+```
+
+  * 我們已經很熟 `[Update n, Pop n]` 了
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NInd NNum 13 ]
+-- instructions
+[ Unwind ]
+-- dump
+[([], [])]
+```
+
+  * 接著 `Unwind` 會消去 `NInd ...` ，從 dump pop 東西出來，發現沒得算
+
+  * 故計算結果是 `13`
+
+---
+
+# the G-machine
+
+  * `Eval` 是 strict 的，為了決定哪時候要 `Eval` ，哪時候不要，得引進不同的 compile scheme
+
+  * compile schemes
+
+    * c(lazy)
+
+    * ε(strict)
+
+  * 最後還有一個 compile scheme β(unboxed?) 後面會看到
+
+---
+
+# the G-machine
+
+  * 為了支援 `case ... of` 和 `Pack{tag, arity}` ，要增加：
+
+    ```
+    data Instruction
+      = ...
+      | Pack Int Int
+      | Casejump [(Int, GmCode)]
+      | Split Int
+    ```
+
+---
+
+# the G-machine
+
+```
+length xs = case xs of
+  <1>      -> 0 ;
+  <2> y ys -> 1 + length ys
+--   = Cons 1 (Cons 1 Nil)
+main = Pack{2,2} 1 (Pack{2,2} 1 Pack{1,0})
+```
 
 ---
 
