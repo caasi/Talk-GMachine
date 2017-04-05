@@ -68,9 +68,11 @@ data Term =
 
 ---
 
-# sugared lambda
+class: center
 
-  * Peter Landin & ISWIN
+<h1 class="centered-title">sugared lambda</h1>
+
+<iframe src="https://www.youtube.com/embed/QVwm9jlBTik" frameborder="0" allowfullscreen></iframe>
 
 ---
 
@@ -1857,13 +1859,49 @@ main = s 7 6
 
   * `Eval` 是 strict 的，為了決定哪時候要 `Eval` ，哪時候不要，得引進不同的 compile scheme
 
-  * compile schemes
+  * compilation schemes
+
+    * 這段我還沒有實作過
 
     * c(lazy)
 
+    * R
+
+      * 在 `let(rec)` 中， body 留在 scheme R ， `let(rec) ... in` 中間的東西用 scheme c compile
+
+      * 在 `if a b c` 中， `a` 用 scheme B compile ， `b` 和 `c` 用 scheme c
+
+      * 在 `case ... of` 中， `...` 用 scheme ε compile ， branches 留在 scheme R
+
+      * 其他都用 scheme ε compile, 再 `[Update n, Pop n, Unwind]`
+
+---
+
+# the G-machine
+
+  * compilation schemes
+
     * ε(strict)
 
-  * 最後還有一個 compile scheme β(unboxed?) 後面會看到
+      * 在 `let(rec)` 中， body 留在 scheme ε ， `let(rec) ... in` 中間的東西用 scheme c compile
+
+      * `case ... of` 裡 `...` 和所有的 branch 都用 scheme ε compile
+
+      * `Pack{tag, arity}` 用 scheme c compile
+
+      * `if`, primitives 用 scheme B compile
+
+      * 其他用 scheme c compile 然後加上 `Eval`
+
+    * B
+
+      * 用來加速 `Int` 跟 `Bool` 的計算用的，最後會講到
+
+      * 跟 ε 的方向類似，不會馬上用到的都切回 scheme c
+
+      * 馬上要用的留在 scheme B
+
+      * 其他以 scheme ε compile 再加上 `Get` 從 stack 拿東西到 vstack
 
 ---
 
@@ -2882,29 +2920,214 @@ main = Pack{2,2} 1 (Pack{2,2} 1 Pack{1,0})
 # the G-machine
 
 ```
-data Instruction
-  = ...
-  | Pushbasic Int
-  | Mkbool
-  | Mkint
-  | Get
-```
-
-```
 (output, stack, vstack, dump, heap, globals, stats)
 ```
 
-  * `Int` 和 `Bool` 的計算還能更快
+  * 如果我們多準備一個專門放 `Int` 和 `Bool` 的 vstack ，那它們的計算還能更快
 
-  * 舉一個 int 例子
+  * 為此要加上：
+
+    ```
+    data Instruction
+      = ...
+      | Pushbasic Int
+      | Mkbool
+      | Mkint
+      | Get
+    ```
 
 ---
 
 # the G-machine
 
 ```
-type GmCode = [Instruction]
+main = 3+4*5
+```
 
+  * `GmCode` 變成 `[Pushbasic 5, Pushbasic 4, Mul, Pushbasic 3, Add, Mkint, Update 0, Pop 0, Unwind]`
+
+---
+
+# the G-machine
+
+```
+-- stack
+[]
+-- vstack
+[]
+-- instructions
+[ Pushglobal "main", Eval ]
+-- dump
+[]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal
+    0
+    [ Pushbasic 5, Pushbasic 4, Mul, Pushbasic 3, Add, Mkint
+    , Update 0, Pop 0, Unwind
+    ]
+]
+-- vstack
+[]
+-- instructions
+[ Eval ]
+-- dump
+[]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] ]
+-- vstack
+[]
+-- instructions
+[ Pushbasic 5, Pushbasic 4, Mul, Pushbasic 3, Add, Mkint
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] ]
+-- vstack
+[ 5 ]
+-- instructions
+[ Pushbasic 4, Mul, Pushbasic 3, Add, Mkint
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] ]
+-- vstack
+[ 5
+, 4
+]
+-- instructions
+[ Mul, Pushbasic 3, Add, Mkint
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] ]
+-- vstack
+[ 20 ]
+-- instructions
+[ Pushbasic 3, Add, Mkint
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] ]
+-- vstack
+[ 20
+, 3
+]
+-- instructions
+[ Add, Mkint
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...] ]
+-- vstack
+[ 23 ]
+-- instructions
+[ Mkint
+, Update 0, Pop 0, Unwind
+]
+-- dump
+[([], [])]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NGlobal 0 [...]
+, NNum 23
+]
+-- vstack
+[]
+-- instructions
+[ Update 0, Pop 0, Unwind ]
+-- dump
+[([], [])]
+```
+
+  * `[Update 0, Pop 0, Unwind]` 很熟了
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NNum 23 ]
+-- vstack
+[]
+-- instructions
+[ Unwind ]
+-- dump
+[]
+```
+
+  * 結果為 `23`
+
+---
+
+# the G-machine
+
+```
 data Instruction
   = Unwind
   | Pushglobal Name
@@ -2922,6 +3145,9 @@ data Instruction
   | Pack Int Int
   | Casejump [(Int, GmCode)]
   | Split Int
+  | Pushbasic
+  | Mkbool | Mkint
+  | Get
   | Print
 ```
 
@@ -2933,19 +3159,17 @@ data Instruction
 
   * [Implementing functional languages: a tutorial][spj-lester-1992]
 
-  * The next 700 programming languages
-
   * [Into the Core][spj-2016]
 
   * [Some History of Functional Programming Languages][david-turner-2017]
 
-  * [workshop-2015.9.24.md][BYOHC-note]
+  * [workshop-2015.9.24.md][note]
 
 [spj-1987]: https://www.microsoft.com/en-us/research/publication/the-implementation-of-functional-programming-languages/
 [spj-lester-1992]: https://www.microsoft.com/en-us/research/publication/implementing-functional-languages-a-tutorial/
 [spj-2016]: https://www.youtube.com/watch?v=uR_VzYxvbxg
 [david-turner-2017]: https://www.youtube.com/watch?v=QVwm9jlBTik
-[BYOHC-note]: https://github.com/CindyLinz/BYOHC-Workshop/blob/master/workshop-2015.9.24.md
+[note]: https://github.com/CindyLinz/BYOHC-Workshop/blob/master/workshop-2015.9.24.md
 
 ---
 
