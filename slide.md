@@ -276,7 +276,7 @@ in
 
 ---
 
-# Core (1987)
+# Core
 
 ```
 data Expr a
@@ -291,7 +291,7 @@ data Expr a
   | ECase
       (Expr a)
       [Alter a]
-  | ELam [a] (Expr a)o
+  | ELam [a] (Expr a)
 
 type Name = String
 type CoreExpr = Expr Name
