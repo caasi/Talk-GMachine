@@ -293,6 +293,7 @@ data Expr a
       [Alter a]
   | ELam [a] (Expr a)
 
+type Alter a = (Int, [a], Expr a)
 type Name = String
 type CoreExpr = Expr Name
 ```
@@ -486,7 +487,7 @@ Addr 0 =>
 -- stack
 [ 9   -- (NAp (Addr 8) (Addr 6))
 , 8   -- (NAp (Addr 0) (Addr 7))
-, 0   -- Supercomb "K" ["x", "y"] ...
+, 0   -- NSupercomb "K" ["x", "y"] ...
 ]
 ```
 
@@ -706,7 +707,9 @@ main = I 3
 ```
 -- stack
 [ NAp
-    NGlobal 1 [...]
+    NGlobal
+      1
+      [Push 0, Update 1, Pop 1, Unwind]
     NNum 3
 , NNum 3
 ]
@@ -720,9 +723,7 @@ main = I 3
 
 ```
 -- stack
-[ NAp
-    NGlobal 1 [...]
-    NNum 3
+[ NAp ...
 , NNum 3
 ]
 -- instrucitons
@@ -838,9 +839,9 @@ main = I 3
 
   * `b = 2` 的是 `[Pushint 2]`
 
-  * `K a b` 的是 `[Pushglobal "K", Push 1, Push 3, Mkap, Mkap]`
+  * `K a b` 的是 `[Push 0, Push 2, Pushglobal "K", Mkap, Mkap]`
 
-  * 合起來是 `[Pushint 1, Pushint 2, Pushglobal "K", Push 1, Push 3, Mkap, Mkap, Slide 2, Update 0, Pop 0, Unwind]`
+  * 合起來是 `[Pushint 1, Pushint 2, Push 0, Push 2, Pushglobal "K", Mkap, Mkap, Slide 2, Update 0, Pop 0, Unwind]`
 
 ---
 
@@ -1047,7 +1048,22 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp
+    NGlobal 1 [...] -- Y
+    NGlobal 1 [...] -- I
+]
+-- instructions
+[ Unwind ]
+```
+
+---
+
+# the G-machine
+
+```
+-- stack
+[ NAp ...
+, NAp ...
 , NGlobal 1 [...] -- I
 , NGlobal 1 [...] -- Y
 ]
@@ -1062,7 +1078,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...] -- I
 ]
 -- instructions
@@ -1081,7 +1097,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...] -- I
 , ?               -- 空出來了 XD
 ]
@@ -1100,7 +1116,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...] -- I
 , ?
 , ?
@@ -1120,7 +1136,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...] -- I
 , ?
 , ?
@@ -1141,7 +1157,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...]   -- I
 , ?
 , NAp
@@ -1163,7 +1179,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...]   -- I
 , NInd NAp
     NGlobal 1 [...] -- I
@@ -1183,7 +1199,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...] -- I
 , NInd NAp ...
 , NInd NAp ...         -- 跟上面的是同一個
@@ -1201,7 +1217,7 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
+, NAp ...
 , NGlobal 1 [...] -- I
 , NInd (NInd NAp ...)
 ]
@@ -1216,7 +1232,6 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
 , NInd (NInd NAp ...)
 ]
 -- instructions
@@ -1230,7 +1245,6 @@ main = I 3
 ```
 -- stack
 [ NAp ...
-, NNum 3
 , NInd NAp
     NGlobal 1 [...]
     NInd NAp
@@ -1287,7 +1301,7 @@ main = s 7 6
 
   * `(+)` 的 `GmCode` 是 `[Push 1, Eval, Push 1, Eval, Add, Update 2, Pop 2, Unwind]` ，之後會用到
 
-  * `s x y = x + I y` 的 `GmCode` 是 `[Push 0, Pushglobal "I", Mkap, Push 2, Pushglobal "+", Mkap, Mkap, Update 2, Pop 2, Unwind]`
+  * `s x y = x + I y` 的 `GmCode` 是 `[Push 1, Pushglobal "I", Mkap, Push 1, Pushglobal "+", Mkap, Mkap, Update 2, Pop 2, Unwind]`
 
   * `main = s 7 6` 的 `GmCode` 是 `[Pushint 6, Pushint 7, Pushglobal "s", Mkap, Mkap, Update 0, Pop 0, Unwind]`
 
@@ -1404,8 +1418,8 @@ main = s 7 6
 , NNum 7
 , NGlobal
     2
-    [ Push 0, Pushglobal "I", Mkap
-    , Push 2, Pushglobal "+", Mkap, Mkap
+    [ Push 1, Pushglobal "I", Mkap
+    , Push 1, Pushglobal "+", Mkap, Mkap
     , Update 2, Pop 2, Unwind
     ]
 -- instructions
@@ -1503,8 +1517,8 @@ main = s 7 6
 , NNum 7
 ]
 -- instructions
-[ Push 0, Pushglobal "I", Mkap
-, Push 2, Pushglobal "+", Mkap, Mkap
+[ Push 1, Pushglobal "I", Mkap
+, Push 1, Pushglobal "+", Mkap, Mkap
 , Update 2, Pop 2, Unwind
 ]
 -- dump
@@ -1520,11 +1534,11 @@ main = s 7 6
 [ NAp ...
 , NNum 6
 , NNum 7
-, NNum 7
+, NNum 6
 ]
 -- instructions
 [ Pushglobal "I", Mkap
-, Push 2, Pushglobal "+", Mkap, Mkap
+, Push 1, Pushglobal "+", Mkap, Mkap
 , Update 2, Pop 2, Unwind
 ]
 -- dump
@@ -1540,12 +1554,12 @@ main = s 7 6
 [ NAp ...
 , NNum 6
 , NNum 7
-, NNum 7
+, NNum 6
 , NGlobal 1 [...] -- I
 ]
 -- instructions
 [ Mkap
-, Push 2, Pushglobal "+", Mkap, Mkap
+, Push 1, Pushglobal "+", Mkap, Mkap
 , Update 2, Pop 2, Unwind
 ]
 -- dump
@@ -1562,11 +1576,11 @@ main = s 7 6
 , NNum 6
 , NNum 7
 , NAp
-    NNum 7
+    NNum 6
     NGlobal 1 [...] -- I
 ]
 -- instructions
-[ Push 2, Pushglobal "+", Mkap, Mkap
+[ Push 1, Pushglobal "+", Mkap, Mkap
 , Update 2, Pop 2, Unwind
 ]
 -- dump
@@ -1583,7 +1597,7 @@ main = s 7 6
 , NNum 6
 , NNum 7
 , NAp ...
-, NNum 6
+, NNum 7
 ]
 -- instructions
 [ Pushglobal "+", Mkap, Mkap
@@ -1603,7 +1617,7 @@ main = s 7 6
 , NNum 6
 , NNum 7
 , NAp ...
-, NNum 6
+, NNum 7
 , NGlobal 2 [...] -- (+)
 ]
 -- instructions
@@ -1626,7 +1640,7 @@ main = s 7 6
 , NAp ...
 , NAp
     NGlobal 2 [...] -- (+)
-    NNum 6
+    NNum 7
 ]
 -- instructions
 [ Mkap
@@ -1648,10 +1662,10 @@ main = s 7 6
 , NAp
     NAp
       NGlobal 2 [...] -- (+)
-      NNum 6
+      NNum 7
     NAp
       NGlobal 1 [...] -- I
-      NNum 7
+      NNum 6
 ]
 -- instructions
 [ Update 2, Pop 2, Unwind ]
@@ -1668,10 +1682,10 @@ main = s 7 6
 [ NAp
     NAp
       NGlobal 2 [...] -- (+)
-      NNum 6
+      NNum 7
     NAp
       NGlobal 1 [...] -- I
-      NNum 7
+      NNum 6
 ]
 -- instructions
 [ Unwind ]
@@ -1690,8 +1704,8 @@ main = s 7 6
 [ NAp ...
 , NAp
     NGlobal 1 [...] -- I
-    NNum 7
-, NNum 6
+    NNum 6
+, NNum 7
 ]
 -- instructions
 [ Push 1, Eval, Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
@@ -1707,10 +1721,10 @@ main = s 7 6
 -- stack
 [ NAp ...
 , NAp ...
-, NNum 6
+, NNum 7
 , NAp
     NGlobal 1 [...] -- I
-    NNum 7
+    NNum 6
 ]
 -- instructions
 [ Eval, Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
@@ -1726,14 +1740,14 @@ main = s 7 6
 -- stack
 [ NAp
     NGlobal 1 [...] -- I
-    NNum 7
+    NNum 6
 ]
 -- instructions
 [ Unwind ]
 -- dump
 [ ( [], [] )
 , ( [ Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
-  , [ NAP ..., NAp ..., NNum 6 ]
+  , [ NAP ..., NAp ..., NNum 7 ]
   )
 ]
 ```
@@ -1745,14 +1759,14 @@ main = s 7 6
 ```
 -- stack
 [ NAp ...
-, NNum 7
+, NNum 6
 ]
 -- instructions
 [ Push 0, Update 1, Pop 1, Unwind ]
 -- dump
 [ ( [], [] )
 , ( [ Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
-  , [ NAP ..., NAp ..., NNum 6 ]
+  , [ NAP ..., NAp ..., NNum 7 ]
   )
 ]
 ```
@@ -1765,18 +1779,18 @@ main = s 7 6
 
 ```
 -- stack
-[ NNum 7 ]
+[ NNum 6 ]
 -- instructions
 [ Unwind ]
 -- dump
 [ ( [], [] )
 , ( [ Push 1, Eval, Add, Update 2, Pop 2, Unwind ]
-  , [ NAP ..., NAp ..., NNum 6 ]
+  , [ NAP ..., NAp ..., NNum 7 ]
   )
 ]
 ```
 
-  * 這時 `NNum 7` 是 WHNF 了
+  * 這時 `NNum 6` 是 WHNF 了
 
   * 把 dump 中的東西搬回來繼續算
 
@@ -1787,9 +1801,9 @@ main = s 7 6
 ```
 -- stack
 [ NAp ...
-, NInd NNum 7 -- 變成指到 NNum 7 了
-, NNum 6
+, NInd NNum 6 -- 變成指到 NNum 7 了
 , NNum 7
+, NNum 6
 ]
 -- instructions
 [ Push 1, EVal, Add, Update 2, Pop 2, Unwind ]
@@ -1797,7 +1811,7 @@ main = s 7 6
 [([], [])]
 ```
 
-  * 再加速一下， `NNum 6` 被 `[Push 1, EVal]` 的結果就是 `NNum 6`
+  * 再加速一下， `NNum 7` 被 `[Push 1, EVal]` 的結果就是 `NNum 7`
 
 ---
 
@@ -1806,10 +1820,10 @@ main = s 7 6
 ```
 -- stack
 [ NAp ...
-, NInd NNum 7
-, NNum 6
+, NInd NNum 6
 , NNum 7
 , NNum 6
+, NNum 7
 ]
 -- instructions
 [ Add, Update 2, Pop 2, Unwind ]
@@ -1824,8 +1838,8 @@ main = s 7 6
 ```
 -- stack
 [ NAp ...
-, NInd NNum 7
-, NNum 6
+, NInd NNum 6
+, NNum 7
 , NNum 13
 ]
 -- instructions
@@ -1861,7 +1875,7 @@ main = s 7 6
 
   * compilation schemes
 
-    * 這段我還沒有實作過
+    * 這段我還沒有實作過 XD
 
     * c(lazy)
 
