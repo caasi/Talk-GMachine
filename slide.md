@@ -4,18 +4,19 @@ class: inverse, center, middle
 ## the stack machine inside a pure functional language
 ### caasih
 
-2017.04.06
+2017.05.04
+
+---
+
+class: center
+
+<h1 class="centered-title">Some History of FP Languages</h1>
+
+<iframe src="https://www.youtube.com/embed/QVwm9jlBTik" frameborder="0" allowfullscreen></iframe>
 
 ---
 
 # lambda calculus
-
-```
-data Term =
-  | Var String
-  | Lam String Term
-  | App Term Term
-```
 
   * lambda terms
 
@@ -30,6 +31,8 @@ data Term =
       ```
       λx.x
       ```
+
+      在此投影片中，有時寫做 `\x x`
 
     * lambda application
 
@@ -68,29 +71,15 @@ data Term =
 
 ---
 
-class: center
-
-<h1 class="centered-title">sugared lambda</h1>
-
-<iframe src="https://www.youtube.com/embed/QVwm9jlBTik" frameborder="0" allowfullscreen></iframe>
-
----
-
 # sugared lambda
 
-以下是對「加糖」前後的 lambda ，一種直觀的對照
+  * `let` & `where`
 
-為了方便，
+  * `letrec`
 
-```
-λx.x
-```
+  * data constructors
 
-都寫做
-
-```
-\x x
-```
+  * `case ... of`
 
 ---
 
@@ -140,13 +129,13 @@ infinite n =
 ### data constructors
 
 ```
--- data Bool = True | False
+-- data Bool = False | True
 (\x \y y)
 (\x \y x)
 ```
 
 ```
--- data List a = Nil | Cons a List
+-- data List a = Nil | Cons a (List a)
 (\a \b a)
 (\x \xs (\a \b b x xs))
 ```
